@@ -103,7 +103,7 @@ int SRP_Send_EOS(void)
     return SRP_ERROR_NOT_READY;
 }
 
-int SRP_SetParams(int id, unsigned long val)
+int SRP_SetParams(int id __unused, unsigned long val __unused)
 {
     if (srp_dev != -1)
         return 0; /* not yet */

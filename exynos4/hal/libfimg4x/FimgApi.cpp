@@ -1,3 +1,6 @@
+#pragma clang diagnostic ignored "-Wunused-parameter"
+#pragma clang diagnostic ignored "-Wformat"
+#pragma clang diagnostic ignored "-Wwritable-strings"
 /*
 **
 ** Copyright 2009 Samsung Electronics Co, Ltd.

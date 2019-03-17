@@ -1,3 +1,6 @@
+#pragma clang diagnostic ignored "-Wunused-variable"
+#pragma clang diagnostic ignored "-Wmismatched-tags"
+#pragma clang diagnostic ignored "-Wunused-parameter"
 /*
 **
 ** Copyright 2009 Samsung Electronics Co, Ltd.
