@@ -5,8 +5,6 @@
  * These modifications are:
  *    * includes
  *    * gralloc_alloc_buffer()
- *    * gralloc_alloc_framebuffer_locked()
- *    * gralloc_alloc_framebuffer()
  *    * alloc_device_alloc()
  *    * alloc_device_free()
  *    * alloc_device_close()
@@ -41,7 +39,6 @@
 
 #include "gralloc_priv.h"
 #include "gralloc_helper.h"
-#include "framebuffer_device.h"
 
 #include "ump.h"
 #include "ump_ref_drv.h"
@@ -405,108 +402,6 @@ static int gralloc_alloc_buffer(alloc_device_t* dev, size_t size, int usage,
     return -1;
 }
 
-static int gralloc_alloc_framebuffer_locked(alloc_device_t* dev, size_t size, int usage,
-                                            buffer_handle_t* pHandle, int w, int h,
-                                            int format, int bpp, int stride)
-{
-    ALOGV("%s: size:%d usage:%d w:%d h:%d format:%d bpp:%d ",
-        __func__, size, usage, w,h, format, bpp);
-    private_module_t* m = reinterpret_cast<private_module_t*>(dev->common.module);
-
-    ALOGD_IF(debug_level > 0, "%s size=0x%x usage=0x%x w=%d h=%d format=0x%x(%d) bpp=%d stride=%d", __func__, size, usage, w, h, format, format, bpp, stride);
-
-    /* allocate the framebuffer */
-    if (m->framebuffer == NULL) {
-        /* initialize the framebuffer, the framebuffer is mapped once and forever. */
-        int err = init_frame_buffer_locked(m);
-        if (err < 0)
-        {
-            return err;
-        }
-    }
-
-    const uint32_t bufferMask = m->bufferMask;
-    const uint32_t numBuffers = m->numBuffers;
-    const size_t bufferSize = m->finfo.line_length * m->info.yres;
-    if (numBuffers == 1) {
-        /*
-         * If we have only one buffer, we never use page-flipping. Instead,
-         * we return a regular buffer which will be memcpy'ed to the main
-         * screen when post is called.
-         */
-        int newUsage = (usage & ~GRALLOC_USAGE_HW_FB) | GRALLOC_USAGE_HW_2D;
-        ALOGE("%s fallback to single buffering", __func__);
-        return gralloc_alloc_buffer(dev, bufferSize, newUsage, pHandle, w, h, format, bpp, 0, 0);
-    }
-
-    if (bufferMask >= ((1LU<<numBuffers)-1))
-    {
-        // We ran out of buffers.
-        ALOGE("%s Ran out of buffers",__func__); //wjj added
-        return -ENOMEM;
-    }
-
-    int current = m->framebuffer->base;
-    int vaddr = m->finfo.smem_start - current;
-    int l_paddr = m->finfo.smem_start;
-
-    ALOGD_IF(debug_level > 0, "%s current=0x%x vaddr=0x%x l_paddr=0x%x before", __func__, current, vaddr, l_paddr);
-
-    /* find a free slot */
-    uint32_t freeSlot = numBuffers -1;
-    for (uint32_t i = 0; i < numBuffers; i++) {
-        if ((bufferMask & (1LU<<i)) == 0) {
-            m->bufferMask |= (1LU<<i);
-            freeSlot = i;
-            break;
-        }
-        current += bufferSize;
-        l_paddr = vaddr + current;
-    }
-    ALOGE("%d: Using bufferslot:%d", __func__, freeSlot);
-
-    /* Update buffermask with freed slots */
-    m->bufferMask ^= m->bufferFreedMask;
-    m->bufferFreedMask &= m->bufferMask;
-
-    ALOGD_IF(debug_level > 0, "%s current=0x%x vaddr=0x%x l_paddr=0x%x after", __func__, current, vaddr, l_paddr);
-
-    /*
-     * The entire framebuffer memory is already mapped,
-     * now create a buffer object for parts of this memory
-     */
-    private_handle_t* hnd = new private_handle_t
-            (private_handle_t::PRIV_FLAGS_FRAMEBUFFER, size, current,
-             0, dup(m->framebuffer->fd), current - m->framebuffer->base);
-
-    hnd->format = format;
-    hnd->usage = usage;
-    hnd->width = w;
-    hnd->height = h;
-    hnd->bpp = bpp;
-    hnd->backing_store = 0;
-    hnd->paddr = l_paddr;
-    hnd->stride = stride;
-
-    *pHandle = hnd;
-
-    return 0;
-}
-
-static int gralloc_alloc_framebuffer(alloc_device_t* dev, size_t size, int usage,
-                                     buffer_handle_t* pHandle, int w, int h,
-                                     int format, int bpp, int stride)
-{
-    ALOGV("%s: size:%d usage:%d w:%d h:%d format:%d bpp:%d",
-        __func__, size, usage, w,h, format, bpp);
-
-    private_module_t* m = reinterpret_cast<private_module_t*>(dev->common.module);
-    pthread_mutex_lock(&m->lock);
-    int err = gralloc_alloc_framebuffer_locked(dev, size, usage, pHandle, w, h, format, bpp, stride);
-    pthread_mutex_unlock(&m->lock);
-    return err;
-}
-
 static int alloc_device_alloc(alloc_device_t* dev, int w, int h, int format,
                               int usage, buffer_handle_t* pHandle, int* pStride)
 {
@@ -654,10 +549,8 @@ static int alloc_device_alloc(alloc_device_t* dev, int w, int h, int format,
     int err;
 
     pthread_mutex_lock(&l_surface);
-    if (l_usage & GRALLOC_USAGE_HW_FB)
-        err = gralloc_alloc_framebuffer(dev, size, l_usage, pHandle, w, h, format, 32, stride);
-    else
-        err = gralloc_alloc_buffer(dev, size, l_usage, pHandle, w, h, format, 0, (int)stride_raw, (int)stride);
+    ALOGE("%s: l_usage=%08x, w=%d, h=%d, size=%d, format=%d, stride_raw=%d, stride=%d, (fb=%d)", __func__, l_usage, w, h, size, format, stride_raw, stride, l_usage & GRALLOC_USAGE_HW_FB);
+    err = gralloc_alloc_buffer(dev, size, l_usage, pHandle, w, h, format, 0, (int)stride_raw, (int)stride);
 
     pthread_mutex_unlock(&l_surface);
 
@@ -685,17 +578,7 @@ static int alloc_device_free(alloc_device_t* dev, buffer_handle_t handle)
         ALOGD_IF(debug_level > 0, "%s: GraphicBuffer (ump_id:%d): Freeing ump_mem_handle:%08x", __func__, hnd->ump_id, hnd->ump_mem_handle);
     }
 
-    if (hnd->flags & private_handle_t::PRIV_FLAGS_FRAMEBUFFER) {
-        /* free this buffer */
-        const size_t bufferSize = m->finfo.line_length * m->info.yres;
-        int index = (hnd->base - m->framebuffer->base) / bufferSize;
-
-        /* Mark slot as freed */
-        m->bufferFreedMask |= (1LU<<index);
-
-        close(hnd->fd);
-
-    } else if (hnd->flags & private_handle_t::PRIV_FLAGS_USES_UMP) {
+    if (hnd->flags & private_handle_t::PRIV_FLAGS_USES_UMP) {
         ALOGD_IF(debug_level > 0, "%s hnd->ump_mem_handle:%08x hnd->ump_id=%d", __func__, hnd->ump_mem_handle, hnd->ump_id);
 
 #ifdef USE_PARTIAL_FLUSH
