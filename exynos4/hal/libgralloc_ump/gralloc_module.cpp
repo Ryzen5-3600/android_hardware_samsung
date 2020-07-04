@@ -341,6 +341,8 @@ static int gralloc_device_open(const hw_module_t* module, const char* name, hw_d
 
     if (!strcmp(name, GRALLOC_HARDWARE_GPU0))
         status = alloc_device_open(module, name, device);
+    else if (!strcmp(name, GRALLOC_HARDWARE_FB0))
+        status = framebuffer_device_open(module, name, device);
 
     property_get("ro.build.version.sdk",property,0);
     gSdkVersion = atoi(property);

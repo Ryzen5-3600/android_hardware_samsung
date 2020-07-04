@@ -35,7 +35,8 @@ LOCAL_C_INCLUDES += \
 
 LOCAL_SRC_FILES := \
 	gralloc_module.cpp \
-	alloc_device.cpp
+	alloc_device.cpp \
+	framebuffer_device.cpp
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_VENDOR_MODULE := true
