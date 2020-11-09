@@ -42,12 +42,6 @@ include $(BUILD_STATIC_LIBRARY)
 
 include $(CLEAR_VARS)
 
-LOCAL_COPY_HEADERS_TO := libsecmm
-LOCAL_COPY_HEADERS := \
-	include/mfc_errno.h \
-	include/mfc_interface.h \
-	include/SsbSipMfcApi.h
-
 LOCAL_MODULE := libsecmfcdecapi
 
 LOCAL_MODULE_TAGS := optional
@@ -80,12 +74,6 @@ include $(BUILD_SHARED_LIBRARY)
 # Shared MFC Enc API
 
 include $(CLEAR_VARS)
-
-LOCAL_COPY_HEADERS_TO := libsecmm
-LOCAL_COPY_HEADERS := \
-	include/mfc_errno.h \
-	include/mfc_interface.h \
-	include/SsbSipMfcApi.h
 
 LOCAL_MODULE := libsecmfcencapi
 
